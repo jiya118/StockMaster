@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}Stock Adjustments{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>Stock Adjustments</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <p>Fix mismatches between recorded and physical stock counts</p>
+        <button class="btn btn-primary" onclick="showCreateAdjustmentModal()">Create Adjustment</button>
+    </div>
+</div>
+
+<!-- Adjustments Table -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">All Stock Adjustments</h2>
+    </div>
+    <div class="card-body">
+        {% if adjustments %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Reference</th>
+                    <th>Reason</th>
+                    <th>Created By</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for adjustment in adjustments %}
+                <tr>
+                    <td>{{ adjustment.reference }}</td>
+                    <td>{{ adjustment.reason or 'N/A' }}</td>
+                    <td>{{ adjustment.created_by_name }}</td>
+                    <td>{{ adjustment.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary" 
+                                onclick="viewAdjustment({{ adjustment.id }})">View Details</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No stock adjustments found. <a href="#" onclick="showCreateAdjustmentModal()">Create your first adjustment</a>.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Adjustment Modal -->
+<div id="createAdjustmentModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Create Stock Adjustment</h3>
+            <span class="close" onclick="closeCreateAdjustmentModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="createAdjustmentForm">
+                <div class="form-group">
+                    <label class="form-label">Reason</label>
+                    <input type="text" name="reason" class="form-control" placeholder="e.g., Physical count discrepancy, Damaged goods">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Warehouse</label>
+                    <select name="warehouse_id" class="form-control" required onchange="updateAdjustmentStock()">
+                        <option value="">Select Warehouse</option>
+                        {% for warehouse in warehouses %}
+                        <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Adjustment Items</label>
+                    <div id="adjustmentItems">
+                        <div class="adjustment-item">
+                            <select name="product_id[]" class="form-control" required onchange="updateAdjustmentItemInfo(this)">
+                                <option value="">Select Product</option>
+                                {% for product in products %}
+                                <option value="{{ product.id }}">{{ product.name }} ({{ product.sku }})</option>
+                                {% endfor %}
+                            </select>
+                            <input type="number" name="current_quantity[]" class="form-control" placeholder="Current Qty" readonly>
+                            <input type="number" name="new_quantity[]" class="form-control" placeholder="New Qty" min="0" required>
+                            <button type="button" class="btn btn-danger btn-sm" onclick="removeAdjustmentItem(this)">Remove</button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addAdjustmentItem()">Add Item</button>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-primary" onclick="submitAdjustment()">Create Adjustment</button>
+            <button type="button" class="btn btn-secondary" onclick="closeCreateAdjustmentModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showCreateAdjustmentModal() {
+    document.getElementById('createAdjustmentModal').style.display = 'block';
+}
+
+function closeCreateAdjustmentModal() {
+    document.getElementById('createAdjustmentModal').style.display = 'none';
+}
+
+function addAdjustmentItem() {
+    const itemsContainer = document.getElementById('adjustmentItems');
+    const newItem = document.createElement('div');
+    newItem.className = 'adjustment-item';
+    newItem.innerHTML = `
+        <select name="product_id[]" class="form-control" required onchange="updateAdjustmentItemInfo(this)">
+            <option value="">Select Product</option>
+            {% for product in products %}
+            <option value="{{ product.id }}">{{ product.name }} ({{ product.sku }})</option>
+            {% endfor %}
+        </select>
+        <input type="number" name="current_quantity[]" class="form-control" placeholder="Current Qty" readonly>
+        <input type="number" name="new_quantity[]" class="form-control" placeholder="New Qty" min="0" required>
+        <button type="button" class="btn btn-danger btn-sm" onclick="removeAdjustmentItem(this)">Remove</button>
+    `;
+    itemsContainer.appendChild(newItem);
+}
+
+function removeAdjustmentItem(button) {
+    button.parentElement.remove();
+}
+
+async function updateAdjustmentItemInfo(element) {
+    const item = element.closest('.adjustment-item');
+    const productSelect = item.querySelector('select[name="product_id[]"]');
+    const currentQtyInput = item.querySelector('input[name="current_quantity[]"]');
+    const newQtyInput = item.querySelector('input[name="new_quantity[]"]');
+    
+    const productId = productSelect.value;
+    const warehouseId = document.querySelector('select[name="warehouse_id"]').value;
+    
+    if (productId && warehouseId) {
+        try {
+            const response = await fetch(`/api/stock/${productId}/${warehouseId}`);
+            const data = await response.json();
+            
+            currentQtyInput.value = data.quantity;
+            newQtyInput.value = data.quantity; // Default to current quantity
+        } catch (error) {
+            console.error('Error fetching stock:', error);
+        }
+    }
+}
+
+function updateAdjustmentStock() {
+    document.querySelectorAll('.adjustment-item').forEach(item => {
+        const sel = item.querySelector('select[name="product_id[]"]');
+        if (sel) {
+            updateAdjustmentItemInfo(sel);
+        }
+    });
+}
+
+function submitAdjustment() {
+    const form = document.getElementById('createAdjustmentForm');
+    const formData = new FormData(form);
+    
+    const data = {
+        reason: formData.get('reason'),
+        warehouse_id: formData.get('warehouse_id'),
+        items: []
+    };
+    
+    const productIds = formData.getAll('product_id[]');
+    const currentQuantities = formData.getAll('current_quantity[]');
+    const newQuantities = formData.getAll('new_quantity[]');
+    
+    productIds.forEach((productId, index) => {
+        const newQty = newQuantities[index];
+        if (productId && newQty !== undefined && newQty !== '') {
+            data.items.push({
+                product_id: parseInt(productId),
+                current_quantity: parseInt(currentQuantities[index] || '0'),
+                new_quantity: parseInt(newQty)
+            });
+        }
+    });
+    
+    fetch('/api/stock-adjustments', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Stock adjustment created successfully', 'success');
+            closeCreateAdjustmentModal();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification('Error creating adjustment: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error creating adjustment', 'error');
+    });
+}
+
+function viewAdjustment(adjustmentId) {
+    window.location.href = `/operations/adjustments/${adjustmentId}`;
+}
+</script>
+
+<style>
+.adjustment-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    align-items: center;
+}
+
+.adjustment-item select,
+.adjustment-item input {
+    flex: 1;
+}
+</style>
+{% endblock %}

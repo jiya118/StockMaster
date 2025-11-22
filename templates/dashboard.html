@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>Dashboard</h1>
+    <p>Welcome back, {{ current_user.name }}! Here's your inventory overview.</p>
+</div>
+
+<!-- KPI Cards -->
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-value">{{ total_products }}</div>
+        <div class="kpi-label">Total Products</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-value">{{ low_stock }}</div>
+        <div class="kpi-label">Low Stock Items</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-value">{{ pending_receipts }}</div>
+        <div class="kpi-label">Pending Receipts</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-value">{{ pending_deliveries }}</div>
+        <div class="kpi-label">Pending Deliveries</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-value">{{ pending_transfers }}</div>
+        <div class="kpi-label">Scheduled Transfers</div>
+    </div>
+</div>
+
+<div class="content-grid">
+    <!-- Recent Activities -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Recent Activities</h2>
+        </div>
+        <div class="card-body">
+            {% if recent_activities %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Reference</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for activity in recent_activities %}
+                    <tr>
+                        <td>
+                            <span class="status-badge status-{{ activity.type }}">
+                                {{ activity.type|title }}
+                            </span>
+                        </td>
+                        <td>{{ activity.reference }}</td>
+                        <td>
+                            <span class="status-badge status-{{ activity.status }}">
+                                {{ activity.status|title }}
+                            </span>
+                        </td>
+                        <td>{{ activity.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>No recent activities found.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Quick Actions</h2>
+        </div>
+        <div class="card-body">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                <a href="{{ url_for('add_product') }}" class="btn btn-primary">Add Product</a>
+                <a href="{{ url_for('receipts') }}" class="btn btn-primary">Create Receipt</a>
+                <a href="{{ url_for('delivery_orders') }}" class="btn btn-primary">Create Delivery</a>
+                <a href="{{ url_for('internal_transfers') }}" class="btn btn-primary">Transfer Stock</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

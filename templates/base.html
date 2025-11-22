@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockMaster - {% block title %}Inventory Management{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>StockMaster</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li><a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a></li>
+                    <li><a href="{{ url_for('products') }}" class="{% if request.endpoint == 'products' %}active{% endif %}">Products</a></li>
+                    <li class="nav-section">Operations</li>
+                    <li><a href="{{ url_for('receipts') }}" class="{% if request.endpoint == 'receipts' %}active{% endif %}">Receipts</a></li>
+                    <li><a href="{{ url_for('delivery_orders') }}" class="{% if request.endpoint == 'delivery_orders' %}active{% endif %}">Delivery Orders</a></li>
+                    <li><a href="{{ url_for('internal_transfers') }}" class="{% if request.endpoint == 'internal_transfers' %}active{% endif %}">Internal Transfers</a></li>
+                    <li><a href="{{ url_for('adjustments') }}" class="{% if request.endpoint == 'adjustments' %}active{% endif %}">Stock Adjustments</a></li>
+                    <li><a href="{{ url_for('move_history') }}" class="{% if request.endpoint == 'move_history' %}active{% endif %}">Move History</a></li>
+                    <li class="nav-section">Settings</li>
+                    <li><a href="{{ url_for('warehouses') }}" class="{% if request.endpoint == 'warehouses' %}active{% endif %}">Warehouses</a></li>
+                    <li><a href="{{ url_for('profile') }}" class="{% if request.endpoint == 'profile' %}active{% endif %}">My Profile</a></li>
+                    <li><a href="{{ url_for('logout') }}">Logout</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'error' if category == 'error' else 'success' }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

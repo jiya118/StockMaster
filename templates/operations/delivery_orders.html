@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block title %}Delivery Orders{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>Delivery Orders</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <p>Manage outgoing stock for customer shipments</p>
+        <button class="btn btn-primary" onclick="showCreateDeliveryModal()">Create Delivery Order</button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filters">
+    <form method="GET" class="filter-form">
+        <div class="filter-row">
+            <div class="filter-group">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-control">
+                    <option value="">All Status</option>
+                    <option value="draft">Draft</option>
+                    <option value="waiting">Waiting</option>
+                    <option value="ready">Ready</option>
+                    <option value="done">Done</option>
+                    <option value="canceled">Canceled</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="form-label">Warehouse</label>
+                <select name="warehouse" class="form-control">
+                    <option value="">All Warehouses</option>
+                    {% for warehouse in warehouses %}
+                    <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Delivery Orders Table -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">All Delivery Orders</h2>
+    </div>
+    <div class="card-body">
+        {% if delivery_orders %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Reference</th>
+                    <th>Customer</th>
+                    <th>Status</th>
+                    <th>Created By</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in delivery_orders %}
+                <tr>
+                    <td>{{ order.reference }}</td>
+                    <td>{{ order.customer or 'N/A' }}</td>
+                    <td>
+                        <span class="status-badge status-{{ order.status }}">
+                            {{ order.status|title }}
+                        </span>
+                    </td>
+                    <td>{{ order.created_by_name }}</td>
+                    <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary" 
+                                onclick="viewDeliveryOrder({{ order.id }})">View</button>
+                        {% if order.status in ['draft', 'waiting'] %}
+                        <button class="btn btn-sm btn-primary" 
+                                onclick="editDeliveryOrder({{ order.id }})">Edit</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No delivery orders found. <a href="#" onclick="showCreateDeliveryModal()">Create your first delivery order</a>.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Delivery Modal -->
+<div id="createDeliveryModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Create Delivery Order</h3>
+            <span class="close" onclick="closeCreateDeliveryModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="createDeliveryForm">
+                <div class="form-group">
+                    <label class="form-label">Customer</label>
+                    <input type="text" name="customer" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Warehouse</label>
+                    <select name="warehouse_id" class="form-control" required>
+                        <option value="">Select Warehouse</option>
+                        {% for warehouse in warehouses %}
+                        <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Products</label>
+                    <div id="deliveryItems">
+                        <div class="delivery-item">
+                            <select name="product_id[]" class="form-control" required onchange="checkStock(this)">
+                                <option value="">Select Product</option>
+                                {% for product in products %}
+                                <option value="{{ product.id }}" data-sku="{{ product.sku }}">{{ product.name }} ({{ product.sku }})</option>
+                                {% endfor %}
+                            </select>
+                            <input type="number" name="quantity[]" class="form-control" placeholder="Qty" min="1" required onchange="checkStock(this)">
+                            <span class="stock-info" style="padding: 0 10px; color: #666;"></span>
+                            <button type="button" class="btn btn-danger btn-sm" onclick="removeDeliveryItem(this)">Remove</button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addDeliveryItem()">Add Product</button>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-primary" onclick="submitDeliveryOrder()">Create Delivery Order</button>
+            <button type="button" class="btn btn-secondary" onclick="closeCreateDeliveryModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentWarehouseId = null;
+
+function showCreateDeliveryModal() {
+    document.getElementById('createDeliveryModal').style.display = 'block';
+}
+
+function closeCreateDeliveryModal() {
+    document.getElementById('createDeliveryModal').style.display = 'none';
+}
+
+function addDeliveryItem() {
+    const itemsContainer = document.getElementById('deliveryItems');
+    const newItem = document.createElement('div');
+    newItem.className = 'delivery-item';
+    newItem.innerHTML = `
+        <select name="product_id[]" class="form-control" required onchange="checkStock(this)">
+            <option value="">Select Product</option>
+            {% for product in products %}
+            <option value="{{ product.id }}" data-sku="{{ product.sku }}">{{ product.name }} ({{ product.sku }})</option>
+            {% endfor %}
+        </select>
+        <input type="number" name="quantity[]" class="form-control" placeholder="Qty" min="1" required onchange="checkStock(this)">
+        <span class="stock-info" style="padding: 0 10px; color: #666;"></span>
+        <button type="button" class="btn btn-danger btn-sm" onclick="removeDeliveryItem(this)">Remove</button>
+    `;
+    itemsContainer.appendChild(newItem);
+}
+
+function removeDeliveryItem(button) {
+    button.parentElement.remove();
+}
+
+async function checkStock(element) {
+    const item = element.closest('.delivery-item');
+    const productSelect = item.querySelector('select[name="product_id[]"]');
+    const quantityInput = item.querySelector('input[name="quantity[]"]');
+    const stockInfo = item.querySelector('.stock-info');
+    
+    const productId = productSelect.value;
+    const warehouseId = document.querySelector('select[name="warehouse_id"]').value;
+    const quantity = quantityInput.value;
+    
+    if (productId && warehouseId) {
+        try {
+            const response = await fetch(`/api/stock/${productId}/${warehouseId}`);
+            const data = await response.json();
+            
+            const availableStock = data.quantity;
+            stockInfo.textContent = `Available: ${availableStock}`;
+            
+            if (quantity > availableStock) {
+                stockInfo.style.color = '#dc3545';
+                quantityInput.style.borderColor = '#dc3545';
+            } else {
+                stockInfo.style.color = '#28a745';
+                quantityInput.style.borderColor = '#28a745';
+            }
+        } catch (error) {
+            console.error('Error checking stock:', error);
+        }
+    }
+}
+
+function submitDeliveryOrder() {
+    const form = document.getElementById('createDeliveryForm');
+    const formData = new FormData(form);
+    
+    const data = {
+        customer: formData.get('customer'),
+        warehouse_id: formData.get('warehouse_id'),
+        items: []
+    };
+    
+    const productIds = formData.getAll('product_id[]');
+    const quantities = formData.getAll('quantity[]');
+    
+    productIds.forEach((productId, index) => {
+        if (productId && quantities[index]) {
+            data.items.push({
+                product_id: parseInt(productId),
+                quantity: parseInt(quantities[index])
+            });
+        }
+    });
+    
+    fetch('/api/delivery-orders', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Delivery order created successfully', 'success');
+            closeCreateDeliveryModal();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification('Error creating delivery order: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error creating delivery order', 'error');
+    });
+}
+
+function viewDeliveryOrder(orderId) {
+    window.location.href = `/operations/delivery-orders/${orderId}`;
+}
+
+function editDeliveryOrder(orderId) {
+    window.location.href = `/operations/delivery-orders/${orderId}/edit`;
+}
+
+// Update stock info when warehouse changes
+const _warehouseSelect = document.querySelector('select[name="warehouse_id"]');
+if (_warehouseSelect) {
+    _warehouseSelect.addEventListener('change', function() {
+        currentWarehouseId = this.value;
+        // Re-check all items
+        document.querySelectorAll('.delivery-item').forEach(item => {
+            checkStock(item);
+        });
+    });
+}
+</script>
+
+<style>
+.delivery-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    align-items: center;
+}
+
+.delivery-item select,
+.delivery-item input {
+    flex: 1;
+}
+</style>
+{% endblock %}

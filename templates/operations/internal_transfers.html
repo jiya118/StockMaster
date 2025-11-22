@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}Internal Transfers{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>Internal Transfers</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <p>Move stock between locations within the company</p>
+        <button class="btn btn-primary" onclick="showCreateTransferModal()">Create Transfer</button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filters">
+    <form method="GET" class="filter-form">
+        <div class="filter-row">
+            <div class="filter-group">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-control">
+                    <option value="">All Status</option>
+                    <option value="draft">Draft</option>
+                    <option value="waiting">Waiting</option>
+                    <option value="ready">Ready</option>
+                    <option value="done">Done</option>
+                    <option value="canceled">Canceled</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="form-label">From Warehouse</label>
+                <select name="from_warehouse" class="form-control">
+                    <option value="">All Warehouses</option>
+                    {% for warehouse in warehouses %}
+                    <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Transfers Table -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">All Internal Transfers</h2>
+    </div>
+    <div class="card-body">
+        {% if transfers %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Reference</th>
+                    <th>From</th>
+                    <th>To</th>
+                    <th>Status</th>
+                    <th>Created By</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for transfer in transfers %}
+                <tr>
+                    <td>{{ transfer.reference }}</td>
+                    <td>{{ transfer.from_warehouse_name }}</td>
+                    <td>{{ transfer.to_warehouse_name }}</td>
+                    <td>
+                        <span class="status-badge status-{{ transfer.status }}">
+                            {{ transfer.status|title }}
+                        </span>
+                    </td>
+                    <td>{{ transfer.created_by_name }}</td>
+                    <td>{{ transfer.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary" 
+                                onclick="viewTransfer({{ transfer.id }})">View</button>
+                        {% if transfer.status in ['draft', 'waiting'] %}
+                        <button class="btn btn-sm btn-primary" 
+                                onclick="editTransfer({{ transfer.id }})">Edit</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No internal transfers found. <a href="#" onclick="showCreateTransferModal()">Create your first transfer</a>.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Transfer Modal -->
+<div id="createTransferModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Create Internal Transfer</h3>
+            <span class="close" onclick="closeCreateTransferModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="createTransferForm">
+                <div class="form-group">
+                    <label class="form-label">From Warehouse *</label>
+                    <select name="from_warehouse_id" class="form-control" required onchange="updateAvailableStock()">
+                        <option value="">Select Source Warehouse</option>
+                        {% for warehouse in warehouses %}
+                        <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">To Warehouse *</label>
+                    <select name="to_warehouse_id" class="form-control" required>
+                        <option value="">Select Destination Warehouse</option>
+                        {% for warehouse in warehouses %}
+                        <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Products</label>
+                    <div id="transferItems">
+                        <div class="transfer-item">
+                            <select name="product_id[]" class="form-control" required onchange="updateItemStock(this)">
+                                <option value="">Select Product</option>
+                                {% for product in products %}
+                                <option value="{{ product.id }}" data-sku="{{ product.sku }}">{{ product.name }} ({{ product.sku }})</option>
+                                {% endfor %}
+                            </select>
+                            <input type="number" name="quantity[]" class="form-control" placeholder="Qty" min="1" required onchange="validateItemQuantity(this)">
+                            <span class="stock-info" style="padding: 0 10px; color: #666;"></span>
+                            <button type="button" class="btn btn-danger btn-sm" onclick="removeTransferItem(this)">Remove</button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addTransferItem()">Add Product</button>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-primary" onclick="submitTransfer()">Create Transfer</button>
+            <button type="button" class="btn btn-secondary" onclick="closeCreateTransferModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showCreateTransferModal() {
+    document.getElementById('createTransferModal').style.display = 'block';
+}
+
+function closeCreateTransferModal() {
+    document.getElementById('createTransferModal').style.display = 'none';
+}
+
+function addTransferItem() {
+    const itemsContainer = document.getElementById('transferItems');
+    const newItem = document.createElement('div');
+    newItem.className = 'transfer-item';
+    newItem.innerHTML = `
+        <select name="product_id[]" class="form-control" required onchange="updateItemStock(this)">
+            <option value="">Select Product</option>
+            {% for product in products %}
+            <option value="{{ product.id }}" data-sku="{{ product.sku }}">{{ product.name }} ({{ product.sku }})</option>
+            {% endfor %}
+        </select>
+        <input type="number" name="quantity[]" class="form-control" placeholder="Qty" min="1" required onchange="validateItemQuantity(this)">
+        <span class="stock-info" style="padding: 0 10px; color: #666;"></span>
+        <button type="button" class="btn btn-danger btn-sm" onclick="removeTransferItem(this)">Remove</button>
+    `;
+    itemsContainer.appendChild(newItem);
+}
+
+function removeTransferItem(button) {
+    button.parentElement.remove();
+}
+
+async function updateItemStock(element) {
+    const item = element.closest('.transfer-item');
+    const productSelect = item.querySelector('select[name="product_id[]"]');
+    const stockInfo = item.querySelector('.stock-info');
+    
+    const productId = productSelect.value;
+    const fromWarehouseId = document.querySelector('select[name="from_warehouse_id"]').value;
+    
+    if (productId && fromWarehouseId) {
+        try {
+            const response = await fetch(`/api/stock/${productId}/${fromWarehouseId}`);
+            const data = await response.json();
+            
+            const availableStock = data.quantity;
+            stockInfo.textContent = `Available: ${availableStock}`;
+            
+            if (availableStock === 0) {
+                stockInfo.style.color = '#dc3545';
+                productSelect.style.borderColor = '#dc3545';
+            } else {
+                stockInfo.style.color = '#28a745';
+                productSelect.style.borderColor = '#28a745';
+            }
+        } catch (error) {
+            console.error('Error checking stock:', error);
+        }
+    }
+}
+
+function validateItemQuantity(element) {
+    const item = element.closest('.transfer-item');
+    const quantityInput = element;
+    const stockInfo = item.querySelector('.stock-info');
+    const availableStockText = stockInfo && stockInfo.textContent ? stockInfo.textContent.replace('Available: ', '') : '0';
+    const availableStock = parseInt(availableStockText) || 0;
+
+    if (Number(quantityInput.value) > availableStock) {
+        quantityInput.style.borderColor = '#dc3545';
+        stockInfo.style.color = '#dc3545';
+    } else {
+        quantityInput.style.borderColor = '#28a745';
+        stockInfo.style.color = '#28a745';
+    }
+}
+
+function updateAvailableStock() {
+    document.querySelectorAll('.transfer-item').forEach(item => {
+        const sel = item.querySelector('select[name="product_id[]"]');
+        if (sel) {
+            updateItemStock(sel);
+        }
+    });
+}
+
+function submitTransfer() {
+    const form = document.getElementById('createTransferForm');
+    const formData = new FormData(form);
+    
+    const data = {
+        from_warehouse_id: formData.get('from_warehouse_id'),
+        to_warehouse_id: formData.get('to_warehouse_id'),
+        items: []
+    };
+    
+    const productIds = formData.getAll('product_id[]');
+    const quantities = formData.getAll('quantity[]');
+    
+    productIds.forEach((productId, index) => {
+        const qty = quantities[index];
+        if (productId && qty !== undefined && qty !== '') {
+            data.items.push({
+                product_id: parseInt(productId),
+                quantity: parseInt(qty)
+            });
+        }
+    });
+    
+    fetch('/api/internal-transfers', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Transfer created successfully', 'success');
+            closeCreateTransferModal();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification('Error creating transfer: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error creating transfer', 'error');
+    });
+}
+
+function viewTransfer(transferId) {
+    window.location.href = `/operations/internal-transfers/${transferId}`;
+}
+
+function editTransfer(transferId) {
+    window.location.href = `/operations/internal-transfers/${transferId}/edit`;
+}
+</script>
+
+<style>
+.transfer-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    align-items: center;
+}
+
+.transfer-item select,
+.transfer-item input {
+    flex: 1;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Move History{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>Move History</h1>
+    <p>Track all stock movements across your warehouses</p>
+</div>
+
+<!-- Filters -->
+<div class="filters">
+    <form method="GET" class="filter-form">
+        <div class="filter-row">
+            <div class="filter-group">
+                <label class="form-label">Movement Type</label>
+                <select name="movement_type" class="form-control">
+                    <option value="">All Types</option>
+                    <option value="receipt">Receipt</option>
+                    <option value="delivery">Delivery</option>
+                    <option value="transfer">Transfer</option>
+                    <option value="adjustment">Adjustment</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="form-label">Warehouse</label>
+                <select name="warehouse" class="form-control">
+                    <option value="">All Warehouses</option>
+                    {% for warehouse in warehouses %}
+                    <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="form-label">Date Range</label>
+                <input type="date" name="start_date" class="form-control">
+                <input type="date" name="end_date" class="form-control" style="margin-top: 5px;">
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Movements Table -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Stock Movement History</h2>
+    </div>
+    <div class="card-body">
+        {% if movements %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Date & Time</th>
+                    <th>Product</th>
+                    <th>Warehouse</th>
+                    <th>Movement Type</th>
+                    <th>Quantity Change</th>
+                    <th>Quantity After</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for movement in movements %}
+                <tr>
+                    <td>{{ movement.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>{{ movement.product_name }}</td>
+                    <td>{{ movement.warehouse_name }}</td>
+                    <td>
+                        <span class="status-badge status-{{ movement.movement_type }}">
+                            {{ movement.movement_type|title }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if movement.quantity_change > 0 %}
+                        <span style="color: #28a745;">+{{ movement.quantity_change }}</span>
+                        {% else %}
+                        <span style="color: #dc3545;">{{ movement.quantity_change }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ movement.quantity_after }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No stock movements found.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
