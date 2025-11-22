@@ -1,0 +1,9 @@
+
+
+
+Flask
+Flask-MySQLdb
+Flask-Login
+python-dotenv
+Werkzeug
+email-validator
