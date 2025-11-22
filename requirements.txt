@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 
 
 
@@ -6,4 +7,14 @@ Flask-MySQLdb
 Flask-Login
 python-dotenv
 Werkzeug
+=======
+
+
+
+Flask
+Flask-MySQLdb
+Flask-Login
+python-dotenv
+Werkzeug
+>>>>>>> ad037788d016f07a4048a89b262d999f5d561f95
 email-validator
